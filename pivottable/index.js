@@ -4,8 +4,73 @@ window.onerror = (err) => {
 };
 
 grist.ready({
-  requiredAccess: 'read table'
+  requiredAccess: 'full'
 });
+
+/**
+ * Fetch a map of { colId -> label } for the currently selected table.
+ * Falls back to colId if the REST API is unavailable.
+ */
+async function fetchColumnLabels() {
+  try {
+    const tokenInfo = await grist.getAccessToken({ readOnly: true });
+    // Determine the current table id from the first record fetch or via viewApi.
+    // We use fetchSelectedTable with keepEncoded to grab the raw column names.
+    const rawTable = await grist.fetchSelectedTable({ keepEncoded: true });
+    const colIds = Object.keys(rawTable).filter(k => k !== 'id');
+
+    // Find which table we are attached to by inspecting the tableId.
+    // We list tables and look for one whose columns include our colIds.
+    const tablesRes = await fetch(
+      `${tokenInfo.baseUrl}/tables?auth=${tokenInfo.token}`
+    );
+    const { tables } = await tablesRes.json();
+
+    for (const table of tables) {
+      const colsRes = await fetch(
+        `${tokenInfo.baseUrl}/tables/${table.id}/columns?auth=${tokenInfo.token}`
+      );
+      const { columns } = await colsRes.json();
+      const ids = columns.map(c => c.id);
+      // Check if this table contains all our colIds (a reasonable heuristic).
+      if (colIds.every(id => ids.includes(id))) {
+        const map = {};
+        for (const col of columns) {
+          map[col.id] = col.fields.label || col.id;
+        }
+        return map;
+      }
+    }
+  } catch (e) {
+    console.warn('fetchColumnLabels failed, using raw column ids:', e);
+  }
+  return {};
+}
+
+/**
+ * Given records (array of objects with colId keys) and a colId->label map,
+ * return a new array of records with keys replaced by their labels.
+ * Also returns the reverse map (label -> colId) for saving settings.
+ */
+function remapRecordKeys(records, labelMap) {
+  if (!records.length || !Object.keys(labelMap).length) return records;
+  return records.map(rec => {
+    const out = {};
+    for (const [k, v] of Object.entries(rec)) {
+      out[labelMap[k] ?? k] = v;
+    }
+    return out;
+  });
+}
+
+/**
+ * Remap an array of column identifiers (as used in pivot settings)
+ * through a mapping object. Missing keys pass through unchanged.
+ */
+function remapKeys(arr, map) {
+  if (!arr) return arr;
+  return arr.map(k => map[k] ?? k);
+}
 
 function wavg (n) {
   if (!n) { return; }
@@ -108,13 +173,37 @@ grist.onRecords(async rec => {
   const {
     rows, cols, vals, aggregatorName, rendererName, inclusions, exclusions
   } = await grist.getOption('settings') ?? {};
+
+  // Build colId->label and label->colId maps, then remap record keys.
+  const labelMap = await fetchColumnLabels();
+  const idToLabel = labelMap;  // colId  -> label
+
+  const remappedRec = remapRecordKeys(rec, idToLabel);
+
+  // Saved settings store labels (what the user sees in the UI). If settings
+  // were saved before labels were introduced they may contain colIds –
+  // attempt to translate them to labels so the pivot restores correctly.
+  const remappedRows = remapKeys(rows, idToLabel);
+  const remappedCols = remapKeys(cols, idToLabel);
+  const remappedVals = remapKeys(vals, idToLabel);
+
+  // inclusions/exclusions are keyed by column name too.
+  function remapIncExc(obj) {
+    if (!obj) return obj;
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[idToLabel[k] ?? k] = v;
+    }
+    return out;
+  }
+
   let initialRender = true;
   $('#table').pivotUI(
-    rec,
+    remappedRec,
     {
-      rows,
-      cols,
-      vals,
+      rows: remappedRows,
+      cols: remappedCols,
+      vals: remappedVals,
       onRefresh: function (config) {
         syncCopyButtonState();
         if (initialRender) {
@@ -130,8 +219,8 @@ grist.onRecords(async rec => {
       },
       aggregatorName,
       rendererName,
-      inclusions,
-      exclusions,
+      inclusions: remapIncExc(inclusions),
+      exclusions: remapIncExc(exclusions),
       aggregators: $.extend($.pivotUtilities.aggregators, aggregators),
       renderers: $.extend(
         $.pivotUtilities.renderers,
