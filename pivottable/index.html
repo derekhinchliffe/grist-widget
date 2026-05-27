@@ -64,7 +64,8 @@
         thead tr.pvt-title-row + tr th {
           border-bottom-style: none;
 
-          &.pvtColLabel, &.pvtTotalLabel, &.pvtRowTotalLabel {
+          &.pvtColLabel, &.pvtTotalLabel, &.pvtRowTotalLabel,
+            tr:last-child .pvtAxisLabel {
             border-bottom-style: solid;
           }
         }
