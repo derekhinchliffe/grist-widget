@@ -23,9 +23,35 @@ function weightedAverage ([val, coef]) {
   });
 }
 
+function sumOverSumPercentage([sumVal, sumOfVal]) {
+  return (_data, _rowKey, _colKey) => ({
+    sum: 0,
+    sumOf: 0,
+    push: function (rec) { this.sum += rec[sumVal]; this.sumOf += rec[sumOfVal]; },
+    value: function () { return this.sumOf ? this.sum / this.sumOf : 0; },
+    format: function (x) { return (Math.round(x * 10000) / 100).toFixed(0) + '%'; },
+    numInputs: 2
+  });
+}
+
 const aggregators = {
-  'Weighted Average': weightedAverage
+  'Weighted Average': weightedAverage,
+  'Sum Over Sum Percentage': sumOverSumPercentage
 };
+
+const renderers = {
+  'Table (min 75%)': function(data, opts) {
+    var table = $.pivotUtilities.renderers['Table'](data, opts);
+    // Search through all .pvtVal cells and set the text color to red if the value is below 75%
+    $(table).find('.pvtVal').each(function() {
+      var value = parseFloat($(this).text());
+      if (value < 75) {
+        $(this).css('color', 'red');
+      }
+    });
+    return table;
+  }
+}
 
 function transferComputedStyle(node) {
     var cs = getComputedStyle(node, null);
@@ -55,35 +81,17 @@ function copyWithStyles(node) {
 }
 
 function copyContainerToClipboard(container) {
-  //const container = document.querySelector('.copy-container');
   if (!container) return;
 
-  // Get the HTML content of the container
-  //const html = copyWithStyles(container).outerHTML;
+  // Using the older select range method of copying to clipboard rather than the Clipboard API
+  // as it seems to work better with pasting styles into Word.
 
-  
-
-  // Use the Clipboard API to write as HTML
-  // if (navigator.clipboard && window.ClipboardItem) {
-  //   const blob = new Blob([html], { type: 'text/html' });
-  //   const item = new ClipboardItem({ 'text/html': blob });
-  //   navigator.clipboard.write([item])
-  //     .then(() => {
-  //       console.log('Copied as HTML!');
-  //     })
-  //     .catch(err => {
-  //       console.error('Clipboard write failed:', err);
-  //     });
-  // } else {
-    // Fallback for older browsers
-    const range = document.createRange();
-    range.selectNode(container);
-    window.getSelection().removeAllRanges();
-    window.getSelection().addRange(range);
-    document.execCommand('copy');
-    window.getSelection().removeAllRanges();
-    console.log('Copied using execCommand fallback.');
-  // }
+  const range = document.createRange();
+  range.selectNode(container);
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(range);
+  document.execCommand('copy');
+  window.getSelection().removeAllRanges();
 }
 
 
@@ -129,7 +137,8 @@ grist.onRecords(async rec => {
         $.pivotUtilities.renderers,
         $.pivotUtilities.plotly_renderers,
         $.pivotUtilities.d3_renderers,
-        $.pivotUtilities.export_renderers
+        $.pivotUtilities.export_renderers,
+        renderers
       ),
       rendererOptions: {
         heatmap: {

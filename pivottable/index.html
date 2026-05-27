@@ -33,6 +33,24 @@
 
             border-style: none;
           }
+
+          tr {
+            td, th {
+              padding: 3px 5px;
+            }
+          }
+        }
+
+        thead tr th + th.pvtAxisLabel {
+          /* Hide the axis header for the columns - generally the columns are self-explanatory (e.g. years).*/
+          visibility: hidden;
+        }
+
+        .pvtAxisLabel {
+          text-align: left;
+        }
+        .pvtColLabel, .pvtRowTotalLabel {
+          vertical-align: bottom;
         }
 
         thead tr:first-child th {
@@ -49,7 +67,11 @@
         thead tr th {
           border-bottom: 2px solid black;
         }
-        border-bottom: 2px solid black;
+
+        .pvtTotalLabel.pvtColTotalLabel, .pvtTotal.colTotal, .pvtGrandTotal {
+          border-style: none;
+          border-top: 2px solid black;
+        }
 
         td.pvtVal, td.pvtTotal,td.grandTotal {
           border-style: none;
