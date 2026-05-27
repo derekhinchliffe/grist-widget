@@ -32,6 +32,7 @@
             background-color: transparent;
 
             border-style: none;
+            font-weight: normal;
           }
 
           tr {
@@ -53,14 +54,21 @@
           vertical-align: bottom;
         }
 
-        thead tr:first-child th {
+        thead tr.pvt-title-row th {
+          font-weight: bold;
+          text-align: left;
+          padding: 4px 4px 6px;
+          border-bottom-style: none;
+        }
+
+        thead tr.pvt-title-row + tr th {
           border-bottom-style: none;
 
           &.pvtColLabel, &.pvtTotalLabel, &.pvtRowTotalLabel {
             border-bottom-style: solid;
           }
         }
-        
+
         tbody tr th {
           text-align: left;
         }
@@ -96,6 +104,50 @@
         opacity: 0.55;
       }
 
+      #pivot-title {
+        font-size: 14pt;
+        font-weight: bold;
+        margin: 0 0 6px;
+        padding: 2px 4px;
+        min-height: 1.4em;
+        border-radius: 3px;
+        outline: none;
+        border: 1px solid transparent;
+        cursor: text;
+        display: inline-block;
+        min-width: 8em;
+      }
+
+      #pivot-title:hover,
+      #pivot-title:focus {
+        border-color: #aaa;
+        background: #fafafa;
+      }
+
+      #pivot-title[data-readonly]  {
+        cursor: default;
+      }
+
+      #pivot-title[data-readonly]:hover {
+        border-color: transparent;
+        background: transparent;
+      }
+
+      #pivot-title:empty:before {
+        content: attr(data-placeholder);
+        color: #aaa;
+        font-weight: normal;
+        pointer-events: none;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        #pivot-title:hover,
+        #pivot-title:focus {
+          background: #3e3e50;
+          border-color: #666;
+        }
+      }
+
       @media (prefers-color-scheme: dark) {
         body {
           background-color: #32323f;
@@ -120,6 +172,7 @@
     </style>
   </head>
   <body>
+    <div id="pivot-title" contenteditable="true" data-placeholder="Click to add a title…" spellcheck="false"></div>
     <div class="pivot-toolbar">
       <button id="copyPivotTable" type="button" disabled>Copy table</button>
     </div>

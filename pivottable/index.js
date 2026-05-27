@@ -7,6 +7,55 @@ grist.ready({
   requiredAccess: 'full'
 });
 
+// --------------- Widget title ---------------
+
+(function initTitle() {
+  const el = document.getElementById('pivot-title');
+  let isReadOnly = false;
+
+  // Load saved title and restore it.
+  grist.getOption('title').then(title => {
+    if (title) el.textContent = title;
+  });
+
+  // Grist tells us the access level via onOptions; use it to lock editing
+  // when the user only has read access.
+  grist.onOptions((_options, interaction) => {
+    isReadOnly = interaction?.accessLevel !== 'full';
+    if (isReadOnly) {
+      el.contentEditable = 'false';
+      el.dataset.readonly = '';
+    } else {
+      el.contentEditable = 'true';
+      delete el.dataset.readonly;
+    }
+  });
+
+  // Save on blur (when user finishes editing).
+  el.addEventListener('blur', () => {
+    if (!isReadOnly) {
+      grist.setOption('title', el.textContent.trim());
+    }
+    syncTitleRow();
+  });
+
+  // Save on Enter (treat it as "done"), prevent newlines.
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      el.blur();
+    }
+    // Swallow Escape to restore previous value.
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      grist.getOption('title').then(title => {
+        el.textContent = title ?? '';
+        el.blur();
+      });
+    }
+  });
+})();
+
 /**
  * Fetch a map of { colId -> label } for the currently selected table.
  * Falls back to colId if the REST API is unavailable.
@@ -160,6 +209,26 @@ function copyContainerToClipboard(container) {
 }
 
 
+function syncTitleRow() {
+  const pvtTable = document.querySelector('#table table.pvtTable');
+  if (!pvtTable) return;
+
+  const title = document.getElementById('pivot-title')?.textContent.trim() ?? '';
+
+  // Remove any previously injected title row so we don't accumulate duplicates.
+  pvtTable.querySelector('thead tr.pvt-title-row')?.remove();
+
+  if (!title) return;
+
+  const tr = document.createElement('tr');
+  tr.className = 'pvt-title-row';
+  const th = document.createElement('th');
+  th.colSpan = 1000;
+  th.textContent = title;
+  tr.appendChild(th);
+  pvtTable.querySelector('thead').prepend(tr);
+}
+
 function syncCopyButtonState() {
   const copyButton = document.getElementById('copyPivotTable');
   if (!copyButton) return;
@@ -167,6 +236,8 @@ function syncCopyButtonState() {
   const pivotTable = document.querySelector('#table table.pvtTable');
   copyButton.disabled = !pivotTable;
   copyButton.onclick = () => copyContainerToClipboard(pivotTable);
+
+  syncTitleRow();
 }
 
 grist.onRecords(async rec => {
